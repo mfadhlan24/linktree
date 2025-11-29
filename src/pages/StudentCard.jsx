@@ -23,12 +23,12 @@ const TEMPLATES = [
   {
     id: 1,
     name: 'STMIK PGRI Tangerang',
-    file: '/template.jpg',
+    file: '/student-card/template_pgri.jpg',
   },
   {
     id: 2,
-    name: 'Universitas Raharja (Contoh)',
-    file: '/template_ur.jpg',
+    name: 'Universitas Raharja (UR)',
+    file: '/student-card/template_ur.jpg',
   },
 ];
 
