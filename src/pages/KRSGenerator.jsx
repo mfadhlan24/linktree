@@ -784,35 +784,54 @@ function KRSgenerator() {
   }
 
   // ==== html2pdf utils ====
-  function pdfOpts(filename) {
-    return {
-      margin: 0,
-      filename,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        dpi: 192,
-        letterRendering: true,
-        backgroundColor: "#ffffff",
-        onclone: (clonedDoc) => {
-          const win = clonedDoc.defaultView;
-          if (!win) return;
-          clonedDoc.querySelectorAll("*").forEach((el) => {
-            const st = win.getComputedStyle(el);
-            ["color", "background-color", "border-color"].forEach((css) => {
-              const val = st.getPropertyValue(css);
-              if (val && val.includes("oklch(")) {
-                el.style.setProperty(css, css === "background-color" ? "#ffffff" : "#000000", "important");
+function pdfOpts(filename) {
+  const UNSUPPORTED_COLOR_FUNCS = ["oklch(", "oklab(", "lab(", "lch(", "color("];
+
+  return {
+    margin: 0,
+    filename,
+    image: { type: "jpeg", quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      dpi: 192,
+      letterRendering: true,
+      backgroundColor: "#ffffff",
+      onclone: (clonedDoc) => {
+        const win = clonedDoc.defaultView;
+        if (!win) return;
+
+        clonedDoc.querySelectorAll("*").forEach((el) => {
+          const st = win.getComputedStyle(el);
+
+          [
+            "color",
+            "background-color",
+            "border-color",
+            "outline-color",
+            "text-decoration-color",
+            "box-shadow", // kadang warna nyelip di sini
+          ].forEach((css) => {
+            const val = st.getPropertyValue(css);
+            if (val && UNSUPPORTED_COLOR_FUNCS.some((f) => val.includes(f))) {
+              // fallback kasar tapi aman buat html2canvas
+              if (css === "background-color") {
+                el.style.setProperty(css, "#ffffff", "important");
+              } else if (css === "box-shadow") {
+                el.style.setProperty(css, "none", "important");
+              } else {
+                el.style.setProperty(css, "#000000", "important");
               }
-            });
+            }
           });
-        },
+        });
       },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    };
-  }
+    },
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+  };
+}
+
   function sanitizeFilename(s) {
     return s.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").slice(0, 90);
   }
