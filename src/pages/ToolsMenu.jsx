@@ -37,6 +37,16 @@ function ToolsMenu() {
       status: "active", // UPDATED: Status Active
       color: "bg-yellow-600"
     },
+          {
+      id: 4,
+      name: "Discount Calculator",
+      desc: "Membantu menghitung potongan harga dengan mudah dan cepat.",
+      icon: <File size={32} />,
+      path: "/tools/discount-calculator", // UPDATED: Path sudah aktif
+      category: "Generators",
+      status: "active", // UPDATED: Status Active
+      color: "bg-yellow-600"
+    },
     // Bisa tambah tool lain di sini...
   ];
 

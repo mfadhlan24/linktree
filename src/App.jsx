@@ -4,6 +4,7 @@ import ToolsMenu from './pages/ToolsMenu';
 import StudentCard from './pages/StudentCard';
 import RefundCalculator from './pages/RefundCalculator'; // Import halaman baru
 import KRSgenerator from './pages/KRSGenerator';
+import DiscountCalculator from './pages/DiscountCalculator';
 
 function App() {
   return (
@@ -23,9 +24,12 @@ function App() {
 
         {/* Tools: Refund Calculator (NEW) */}
         <Route path="/tools/refund-calculator" element={<RefundCalculator />} />
-        
+
         {/* Tools: KRS Generator (NEW) */}
         <Route path="/tools/krs-generator" element={<KRSgenerator />} />
+
+        {/* Tools: Discount Calculator (NEW) */}
+        <Route path="/tools/discount-calculator" element={<DiscountCalculator />} />
       </Routes>
     </Router>
   );
