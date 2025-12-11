@@ -1,10 +1,16 @@
 import { useState, useRef, useEffect } from "react";
-import html2pdf from "html2pdf.js";
+import html2canvas from "html2canvas";
 import { fakerID_ID } from "@faker-js/faker";
 import "@docuseal/signature-maker-js";
 import JSZip from "jszip";
+import jsPDF from "jspdf";
 import { saveAs } from "file-saver";
 
+// Components
+import EducatorSummarySlip from "../components/KRS/EducatorSummarySlip";
+import  InputGroup  from "../components/KRS/inputGroup";
+import SlipKRS from "../components/KRS/SlipKRS";
+import TeachingEmploymentLetter from "../components/KRS/TeachingEmploymentLetter";
 /* =========================================================
  * 1) DATA CONSTANTS & CONFIG
  * =======================================================*/
@@ -42,7 +48,8 @@ const VENUE_LIST_RAHARJA = ["Lab iLearning", "R. L201", "R. M303", "Grand Max Th
 const VENUE_LIST_IIUM = ["KICT Lab 1", "KICT LR 2", "Main Hall", "Auditorium"];
 const VENUE_LIST_UOC = ["Grand Hall", "Pharmacy Lab 2", "Anatomy Room", "Lecture Theatre 1", "Psych Lab"];
 
-const DAY_LIST = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"];
+const DAY_LIST_ID = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"];
+const DAY_LIST_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const TIME_LIST = ["08:00 - 10:00", "10:00 - 12:00", "13:00 - 15:00", "15:30 - 17:30", "18:30 - 20:30"];
 
 const PRESETS = {
@@ -57,6 +64,7 @@ const PRESETS = {
     docTitle: "KARTU RENCANA STUDI (KRS)",
     officeText: "Bagian Administrasi Akademik (BAA)",
     emailSuffix: "@raharja.info",
+    lang: "id",
     labels: {
       id: "NIM",
       studentName: "Nama Mahasiswa",
@@ -74,12 +82,17 @@ const PRESETS = {
       level: "Sarjana (S1)",
       section: "Malam (Reguler B)",
     },
+    rectorNames: ["Ir. Untung Rahardja, M.T.I."],
+    confidential: "*** DOKUMEN INI SANGAT RAHASIA ***",
   },
   IIUM: {
     id: "IIUM",
     logoUrl: "/logo-iium.png",
     signUrl: "/sign.png",
     logoClass: "h-[70px] w-auto",
+    confidential: "*** THIS DOCUMENT IS STRICTLY CONFIDENTIAL ***",
+    lang: "en",
+
     uniName: "INTERNATIONAL ISLAMIC UNIVERSITY MALAYSIA (IIUM)",
     uniAddress: "P.O. Box 10, 50728 Kuala Lumpur, Malaysia",
     uniContact: "Tel: +603-6421 6421 | www.iium.edu.my",
@@ -97,6 +110,7 @@ const PRESETS = {
       lecturer: "Lecturer / Pensyarah",
       consultant: "Academic Advisor",
     },
+    rectorNames: ["Prof. Emeritus Tan Sri Dato' Seri Dzulkifli Abdul Razak"],
     defaultData: {
       faculty: "Kulliyyah of ICT",
       dept: "Computer Science",
@@ -111,9 +125,12 @@ const PRESETS = {
     logoClass: "h-auto max-h-[60px] max-w-[250px]",
     uniName: "UNIVERSITY OF CYBERJAYA",
     uniAddress: "Persiaran Bestari, Cyber 11, 63000 Cyberjaya, Selangor, Malaysia",
+    lang: "en",
+    confidential: "*** THIS DOCUMENT IS STRICTLY CONFIDENTIAL ***",
     uniContact: "Tel: +603-8313 7000 | inquiry@cyberjaya.edu.my",
     docTitle: "REGISTRATION STATEMENT",
     officeText: "Registrar Office",
+    rectorNames: ["Prof. Dr. Heryy Budy M.TI"],
     emailSuffix: "@student.cyberjaya.edu.my",
     labels: {
       id: "Student ID",
@@ -153,7 +170,8 @@ function getDynamicSemester(presetType) {
   const now = new Date();
   const month = now.getMonth();
   const year = now.getFullYear();
-  let acadYear = "", semesterLabel = "";
+  let acadYear = "",
+    semesterLabel = "";
 
   if (month >= 7) {
     acadYear = `${year}/${year + 1}`;
@@ -176,9 +194,7 @@ function generateSignatureFromName(name = "") {
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+  // transparan, tidak di-fill putih
   ctx.fillStyle = "#111827";
   ctx.textBaseline = "middle";
   ctx.font = 'italic 32px "Segoe Script", "Pacifico", cursive';
@@ -210,40 +226,185 @@ function captureSignatureCanvasOnly() {
 
 // NAMA MALAYSIA VARIATIF
 function generateMalayName() {
-  const maleFirsts = ["Ahmad","Muhammad","Mohd","Adam","Hakim","Hafiz","Amir","Aiman","Irfan","Syafiq","Faiz","Firdaus","Haziq","Ikmal","Khairul","Syahmi","Arif","Danial","Naufal","Farhan"];
-  const femaleFirsts = ["Nur","Aisyah","Siti","Aina","Amirah","Balqis","Hannah","Iman","Insyirah","Nadia","Nabila","Qistina","Syuhada","Zulaikha","Ain","Sofea","Nurin","Zahra","Maryam","Alya"];
+  const maleFirsts = [
+    "Ahmad",
+    "Muhammad",
+    "Mohd",
+    "Adam",
+    "Hakim",
+    "Hafiz",
+    "Amir",
+    "Aiman",
+    "Irfan",
+    "Syafiq",
+    "Faiz",
+    "Firdaus",
+    "Haziq",
+    "Ikmal",
+    "Khairul",
+    "Syahmi",
+    "Arif",
+    "Danial",
+    "Naufal",
+    "Farhan",
+  ];
+  const femaleFirsts = [
+    "Nur",
+    "Aisyah",
+    "Siti",
+    "Aina",
+    "Amirah",
+    "Balqis",
+    "Hannah",
+    "Iman",
+    "Insyirah",
+    "Nadia",
+    "Nabila",
+    "Qistina",
+    "Syuhada",
+    "Zulaikha",
+    "Ain",
+    "Sofea",
+    "Nurin",
+    "Zahra",
+    "Maryam",
+    "Alya",
+  ];
   const male = Math.random() > 0.5;
   const first = male ? getRandom(maleFirsts) : getRandom(femaleFirsts);
   const father = getRandom(maleFirsts);
   const bin = male ? "bin" : "binti";
-  const modernMiddles = ["Aqil","Rayyan","Danish","Nurin","Alia","Humaira","Mikael","Ariq"];
+  const modernMiddles = [
+    "Aqil",
+    "Rayyan",
+    "Danish",
+    "Nurin",
+    "Alia",
+    "Humaira",
+    "Mikael",
+    "Ariq",
+  ];
   const maybeMiddle = Math.random() < 0.3 ? ` ${getRandom(modernMiddles)}` : "";
   return `${first}${maybeMiddle} ${bin} ${father}`;
 }
+
 function generateChineseMYName() {
-  const surnames = ["Lee","Lim","Tan","Chong","Ng","Wong","Chan","Goh","Chin","Chee","Loh","Lau","Yap","Chia","Teoh","Koh"];
-  const given1 = ["Wei","Jia","Yi","Hui","Xin","Jun","Qian","Zhi","Yong","Mei","Li","Yu"];
-  const given2 = ["Ming","Xuan","Ling","Hao","Ting","Rui","Shan","Ning","Hui","Fang","Han","En"];
+  const surnames = [
+    "Lee",
+    "Lim",
+    "Tan",
+    "Chong",
+    "Ng",
+    "Wong",
+    "Chan",
+    "Goh",
+    "Chin",
+    "Chee",
+    "Loh",
+    "Lau",
+    "Yap",
+    "Chia",
+    "Teoh",
+    "Koh",
+  ];
+  const given1 = [
+    "Wei",
+    "Jia",
+    "Yi",
+    "Hui",
+    "Xin",
+    "Jun",
+    "Qian",
+    "Zhi",
+    "Yong",
+    "Mei",
+    "Li",
+    "Yu",
+  ];
+  const given2 = [
+    "Ming",
+    "Xuan",
+    "Ling",
+    "Hao",
+    "Ting",
+    "Rui",
+    "Shan",
+    "Ning",
+    "Hui",
+    "Fang",
+    "Han",
+    "En",
+  ];
   return `${getRandom(surnames)} ${getRandom(given1)} ${getRandom(given2)}`;
 }
+
 function generateIndianMYName() {
   const male = Math.random() > 0.5;
-  const maleFirsts = ["Arun","Kumar","Vijay","Pravin","Sanjay","Suresh","Ravi","Rajesh","Rakesh","Vikram","Karthik"];
-  const femaleFirsts = ["Asha","Priya","Deepa","Pooja","Divya","Shalini","Anita","Kavitha","Meera","Nisha"];
-  const fatherNames = ["Murugan","Subramaniam","Ramachandran","Balakrishnan","Krishnan","Ganesan","Raman","Maniam","Loganathan","Rajan"];
+  const maleFirsts = [
+    "Arun",
+    "Kumar",
+    "Vijay",
+    "Pravin",
+    "Sanjay",
+    "Suresh",
+    "Ravi",
+    "Rajesh",
+    "Rakesh",
+    "Vikram",
+    "Karthik",
+  ];
+  const femaleFirsts = [
+    "Asha",
+    "Priya",
+    "Deepa",
+    "Pooja",
+    "Divya",
+    "Shalini",
+    "Anita",
+    "Kavitha",
+    "Meera",
+    "Nisha",
+  ];
+  const fatherNames = [
+    "Murugan",
+    "Subramaniam",
+    "Ramachandran",
+    "Balakrishnan",
+    "Krishnan",
+    "Ganesan",
+    "Raman",
+    "Maniam",
+    "Loganathan",
+    "Rajan",
+  ];
   const first = male ? getRandom(maleFirsts) : getRandom(femaleFirsts);
   const father = getRandom(fatherNames);
   const connector = male ? "A/L" : "A/P";
   return `${first} ${connector} ${father}`;
 }
+
 function generateModernMYName() {
-  const modernFirsts = ["Adam","Ryan","Jayden","Kayden","Ethan","Sophia","Ariel","Hana","Mika","Zara","Elly","Nate"];
+  const modernFirsts = [
+    "Adam",
+    "Ryan",
+    "Jayden",
+    "Kayden",
+    "Ethan",
+    "Sophia",
+    "Ariel",
+    "Hana",
+    "Mika",
+    "Zara",
+    "Elly",
+    "Nate",
+  ];
   const male = Math.random() > 0.5;
   const first = getRandom(modernFirsts);
   const father = generateMalayName().split(" ").pop();
   const bin = male ? "bin" : "binti";
   return `${first} ${bin} ${father}`;
 }
+
 function generateFakerName(preset) {
   if (preset === "RAHARJA") return fakerID_ID.person.fullName();
   const roll = Math.random();
@@ -254,327 +415,93 @@ function generateFakerName(preset) {
 }
 
 /* =========================================================
- * 3) SMALL UI
+ * 6) PDF HELPERS & COLOR PATCH
  * =======================================================*/
-const InputGroup = ({ label, value, onChange, placeholder }) => {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
-    if (!value) return;
-    navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-  return (
-    <div>
-      <label className="block font-semibold text-xs text-slate-400 uppercase mb-1">{label}</label>
-      <div className="flex relative">
-        <input
-          className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 pr-10 focus:ring-2 focus:ring-purple-500 outline-none text-white text-sm"
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-        />
-        <button
-          onClick={handleCopy}
-          title="Copy"
-          className="absolute right-1 top-1 bottom-1 px-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded"
-        >
-          {copied ? "✓" : "⧉"}
-        </button>
-      </div>
-    </div>
-  );
-};
 
-/* =========================================================
- * 4) SLIP KRS (TETAP ADA)
- * =======================================================*/
-function SlipKRS({
-  C, L, uniName, semesterText,
-  student, courses, totalCredits, generatedAt,
-  studentSignatureBase64, isLast = false
-}) {
-  return (
-    <div
-      className="w-[210mm] min-h-[297mm] p-[20mm] bg-white text-black box-border font-['Times_New_Roman',Times,_serif] shadow-2xl"
-      style={{ pageBreakAfter: isLast ? "auto" : "always" }}
-    >
-      {/* HEADER */}
-      <div className="relative border-b-2 border-black pb-2 mb-4 min-h-[80px]">
-        {C.logoUrl && (
-          <img
-            src={C.logoUrl}
-            alt="Logo"
-            className={`${C.logoClass} object-contain absolute left-0 top-1`}
-            onError={(e) => (e.currentTarget.style.display = "none")}
-          />
-        )}
-        <div className="text-center">
-          <h1 className="font-bold uppercase tracking-wide text-[16pt] leading-tight">
-            {uniName}
-          </h1>
-          <p className="text-[9pt]">{C.uniAddress}</p>
-          <p className="text-[9pt] italic">{C.uniContact}</p>
-        </div>
-      </div>
+const UNSUPPORTED_COLOR_FUNCS = ["oklch(", "oklab(", "lab(", "lch(", "color("];
 
-      <div className="text-center mb-6">
-        <h2 className="font-bold underline uppercase text-[14pt]">{C.docTitle}</h2>
-        <p className="uppercase mt-1 text-[11pt] font-bold">{semesterText}</p>
-      </div>
+function patchColorsForHtml2Canvas(clonedDoc) {
+  const win = clonedDoc.defaultView;
+  if (!win) return;
 
-      {/* INFO MAHASISWA */}
-      <table className="w-full mb-6 text-[10pt]">
-        <tbody>
-          <tr>
-            <td className="font-bold w-32 py-0.5">{L.studentName}</td><td className="w-2">:</td>
-            <td className="uppercase">{student.name}</td>
-            <td className="font-bold w-28 pl-4">{L.faculty}</td><td className="w-2">:</td>
-            <td>{student.faculty}</td>
-          </tr>
-          <tr>
-            <td className="font-bold py-0.5">{L.id}</td><td>:</td><td>{student.id}</td>
-            <td className="font-bold pl-4">{L.dept}</td><td>:</td><td>{student.department}</td>
-          </tr>
-          <tr>
-            <td className="font-bold py-0.5">{L.level}</td><td>:</td><td>{student.level}</td>
-            <td className="font-bold pl-4">{L.section}</td><td>:</td><td>{student.section}</td>
-          </tr>
-          <tr>
-            <td className="font-bold py-0.5">Email</td><td>:</td><td>{student.email}</td>
-            <td className="font-bold pl-4">Phone</td><td>:</td><td>{student.phone}</td>
-          </tr>
-        </tbody>
-      </table>
+  clonedDoc.querySelectorAll("*").forEach((node) => {
+    const st = win.getComputedStyle(node);
+    [
+      "color",
+      "background-color",
+      "border-color",
+      "outline-color",
+      "text-decoration-color",
+      "box-shadow",
+    ].forEach((prop) => {
+      const val = st.getPropertyValue(prop);
+      if (val && UNSUPPORTED_COLOR_FUNCS.some((f) => val.includes(f))) {
+        if (prop === "background-color") {
+          node.style.setProperty(prop, "#ffffff", "important");
+        } else if (prop === "box-shadow") {
+          node.style.setProperty(prop, "none", "important");
+        } else {
+          node.style.setProperty(prop, "#000000", "important");
+        }
+      }
+    });
+  });
 
-      {/* TABLE */}
-      <table className="w-full border-collapse border border-black mb-6 text-[10pt]">
-        <thead>
-          <tr className="bg-slate-100">
-            <th className="border border-black p-1 w-8 text-center align-middle">No</th>
-            <th className="border border-black p-1 w-20 text-center align-middle">Kode</th>
-            <th className="border border-black p-1 text-center align-middle">Mata Kuliah / Course</th>
-            <th className="border border-black p-1 w-12 text-center align-middle">{C.labels.credits}</th>
-            <th className="border border-black p-1 w-24 text-center align-middle">Jadwal</th>
-            <th className="border border-black p-1 w-20 text-center align-middle">Ruang</th>
-            <th className="border border-black p-1 w-32 text-center align-middle">Dosen</th>
-          </tr>
-        </thead>
-        <tbody>
-          {courses.map((c, idx) => (
-            <tr key={idx}>
-              <td className="border border-black p-1 text-center align-middle">{c.no}</td>
-              <td className="border border-black p-1 text-center align-middle">{c.code}</td>
-              <td className="border border-black p-1 font-bold text-center align-middle">{c.name}</td>
-              <td className="border border-black p-1 text-center align-middle">{c.credits > 0 ? c.credits : ""}</td>
-              <td className="border border-black p-1 text-center align-middle">
-                <div className="text-[9pt]">{c.day}</div>
-                <div className="text-[8pt]">{c.time}</div>
-              </td>
-              <td className="border border-black p-1 text-center align-middle text-[9pt]">{c.venue}</td>
-              <td className="border border-black p-1 text-center align-middle italic text-[9pt]">{c.lecturer}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="bg-slate-100 font-bold">
-            <td colSpan={3} className="border border-black p-1 uppercase text-right">
-              Total {C.labels.credits}
-            </td>
-            <td className="border border-black p-1 text-center align-middle">{totalCredits}</td>
-            <td colSpan={3} className="border border-black p-1 bg-slate-300" />
-          </tr>
-        </tfoot>
-      </table>
-
-      {/* FOOTER & TTD */}
-      <div className="grid grid-cols-3 gap-4 text-center mt-12 text-[10pt]">
-        <div>
-          <p className="mb-4">{C.labels.studentName}</p>
-          <div className="h-20 flex items-center justify-center mb-2">
-            {studentSignatureBase64 ? (
-              <img src={studentSignatureBase64} alt="Student Signature" className="h-full object-contain" />
-            ) : (
-              <div className="h-16 w-40 border-b border-dashed border-gray-400" />
-            )}
-          </div>
-          <p className="font-bold underline uppercase">{student.name}</p>
-        </div>
-        <div>
-          <p className="mb-16">{C.labels.consultant}</p>
-          <p className="border-b border-black w-3/4 mx-auto" />
-        </div>
-        <div>
-          <p className="mb-4">{C.officeText}</p>
-          <div className="h-20 flex items-center justify-center mb-2">
-            {C.signUrl ? (
-              <img
-                src={C.signUrl}
-                alt="Digital Signature"
-                className="h-full object-contain"
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
-            ) : (
-              <div className="h-16 w-full border-b border-dashed border-gray-400" />
-            )}
-          </div>
-          <p className="mb-2 text-[9pt] text-gray-600">Dicetak: {generatedAt}</p>
-          <p className="font-bold underline">Administrator / Registrar</p>
-        </div>
-      </div>
-
-      <div className="mt-8 text-center border-t pt-2 text-[9pt] text-gray-500">
-        <p className="italic text-red-600 uppercase tracking-widest mt-1">
-          *** DOKUMEN INI SANGAT RAHASIA / STRICTLY CONFIDENTIAL ***
-        </p>
-      </div>
-    </div>
-  );
+  clonedDoc.querySelectorAll(".pdf-page").forEach((pageEl) => {
+    pageEl.style.boxShadow = "none";
+    pageEl.style.backgroundColor = "#ffffff";
+  });
 }
 
-/* =========================================================
- * 5) EDUCATOR SUMMARY (MODIFIED - RESIZABLE)
- * =======================================================*/
-function EducatorSummarySlip({
-  org,
-  educatorId,
-  fullName,
-  birthYear,
-  status = "Issued",
-  effectiveDate = "08/15/2024",
-  issueDate = "08/10/2024",
-  expirationDate = "08/14/2029",
-  teachingField = { name: "Integrated Mathematics", code: "050230" },
-  submittedDate = "08/01/2024",
-  eSignStatus = "Completed",
-  isLast = false,
-}) {
-  return (
-    <div
-      className="w-[210mm] min-h-[297mm] py-[18mm] px-[20mm] bg-white text-slate-900 box-border font-sans"
-      style={{ pageBreakAfter: isLast ? "auto" : "always" }}
-    >
-      {/* HEADER MODIFIKASI: LOGO RESIZABLE & TEKS DI BAWAH */}
-      <div className="flex flex-col items-center mb-6 text-center group">
-        {/* LOGO AREA: Full width, bisa di-resize vertikal */}
-        {org.logoUrl && (
-          <div className="w-full flex justify-center mb-4">
-             {/* - resize-y: User bisa drag bawah untuk atur tinggi.
-                - overflow-hidden: Wajib supaya resize jalan.
-                - hover:border: Indikator agar user tahu bisa di-resize.
-             */}
-             <div
-               className="resize-y overflow-hidden flex justify-center items-center border border-transparent hover:border-dashed hover:border-slate-300 transition-all rounded p-1 relative"
-               style={{ height: '140px', minHeight: '50px', width: '100%' }} // Default height lebih besar
-               title="Drag bottom-right corner to resize logo"
-             >
-                {/* Image: pointer-events-none agar tidak mengganggu drag */}
-                <img
-                  src={org.logoUrl}
-                  alt="Org Logo"
-                  className="w-full h-full object-contain pointer-events-none"
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                />
+// VERSI 1: High DPI html2canvas → image → jsPDF
+async function elementToPdfBlobCanvas(el, dpiScale = 3) {
+  const width = el.scrollWidth || el.getBoundingClientRect().width;
+  const height = el.scrollHeight || el.getBoundingClientRect().height;
 
-                {/* Visual Hint di pojok kanan bawah saat hover */}
-                <div className="absolute bottom-0 right-0 w-3 h-3 border-r-2 border-b-2 border-slate-400 opacity-0 group-hover:opacity-100 pointer-events-none"></div>
-             </div>
-          </div>
-        )}
+  const canvas = await html2canvas(el, {
+    scale: dpiScale,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    scrollX: 0,
+    scrollY: -window.scrollY,
+    width,
+    height,
+    onclone: (clonedDoc) => patchColorsForHtml2Canvas(clonedDoc),
+  });
 
-        {/* TEXT AREA: Di bawah logo */}
-        <div className="w-full">
-          <div className="font-bold text-[24px] tracking-wide uppercase leading-tight">
-            {org.name}
-          </div>
-          <div className="font-semibold text-[14px] text-slate-500 mt-2">
-            ID: {educatorId}
-          </div>
-        </div>
-      </div>
+  const imgData = canvas.toDataURL("image/jpeg", 0.98);
+  const pdf = new jsPDF("p", "mm", "a4");
 
-      <div className="mt-8 text-[20px] font-bold">
-        Educator Summary for {fullName}
-      </div>
-      <div className="text-slate-500 mb-3 text-sm">
-        State Educator Licensing Portal
-      </div>
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
 
-      <div className="border-b border-slate-200 py-2 font-semibold text-sm">
-        Demographics
-      </div>
-      <div className="flex justify-between items-center border-b border-slate-200 py-3 text-sm">
-        <span className="text-slate-500">Birth Year:</span>
-        <span>{birthYear}</span>
-      </div>
+  let imgWidth = pageWidth;
+  let imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      <div className="border-b border-slate-200 py-2 mt-1 font-semibold text-sm">
-        Credentials
-      </div>
-      <div className="grid grid-cols-4 gap-3 border-b border-slate-200 py-3 text-[13px]">
-        <div className="font-semibold text-slate-500">STATUS</div>
-        <div className="font-semibold text-slate-500">EFFECTIVE DATE</div>
-        <div className="font-semibold text-slate-500">ISSUE DATE</div>
-        <div className="font-semibold text-slate-500">EXPIRATION DATE</div>
+  if (imgHeight > pageHeight) {
+    imgHeight = pageHeight;
+    imgWidth = (canvas.width * imgHeight) / canvas.height;
+  }
 
-        <div className="mt-1">
-          <span className="inline-flex px-3 py-0.5 rounded-full bg-emerald-500 text-white text-[12px] font-bold">
-            {status}
-          </span>
-        </div>
-        <div className="mt-1">{effectiveDate}</div>
-        <div className="mt-1">{issueDate}</div>
-        <div className="mt-1">{expirationDate}</div>
-      </div>
+  const x = (pageWidth - imgWidth) / 2;
+  const y = 0;
 
-      <div className="border-b border-slate-200 py-2 mt-2 font-bold text-sm tracking-wide">
-        CREDENTIAL
-      </div>
-      <div className="pt-2 text-sm leading-relaxed">
-        <p>5 Year Professional Adolescence to Young Adult (7–12) License</p>
-
-        <div className="mt-3">
-          <div className="font-semibold text-slate-500">Credential Number:</div>
-          <div className="mt-1">
-            Teaching Fields: {teachingField.name} [{teachingField.code}]
-          </div>
-        </div>
-
-        <div className="flex justify-end mt-4 text-[12px]">
-          <div className="text-right text-slate-500">
-            <div className="font-bold text-slate-600">{teachingField.code}</div>
-            <div>Issue Date</div>
-            <div className="text-slate-900">{issueDate}</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="border-b border-slate-200 py-2 mt-4 font-semibold text-sm">
-        Submitted Applications
-      </div>
-      <div className="grid grid-cols-[1fr_3fr_1fr] gap-3 py-3 text-[13px]">
-        <div className="font-semibold text-slate-500">SUBMITTED DATE</div>
-        <div className="font-semibold text-slate-500">CREDENTIAL / STATUS</div>
-        <div className="font-semibold text-slate-500">E-SIGN STATUS</div>
-
-        <div className="mt-1">{submittedDate}</div>
-        <div className="mt-1">
-          5 Year Professional Adolescence to Young Adult (7–12) License ·{" "}
-          <span className="font-bold">{status}</span>
-        </div>
-        <div className="mt-1">{eSignStatus}</div>
-      </div>
-    </div>
-  );
+  pdf.addImage(imgData, "JPEG", x, y, imgWidth, imgHeight);
+  return pdf.output("blob");
 }
 
+
+
 /* =========================================================
- * 6) MAIN APP
+ * 7) MAIN APP
  * =======================================================*/
 function KRSgenerator() {
   const [activePreset, setActivePreset] = useState("RAHARJA");
   const [docMode, setDocMode] = useState("educator");
   const [mode, setMode] = useState("bulk");
+
+  // PDF render mode: "canvas" atau "jspdf"
+  const [pdfRenderMode, setPdfRenderMode] = useState("canvas");
 
   // KRS states
   const [uniName, setUniName] = useState("");
@@ -617,9 +544,14 @@ function KRSgenerator() {
     setDepartment(config.defaultData.dept);
     setLevel(config.defaultData.level);
     setSection(config.defaultData.section);
-    setMatricNo(""); setStudentName(""); setEmail(""); setPhone("");
-    setStudentSignature(null); setShown(false);
-    setBulkStudents([]); slipRefs.current = [];
+    setMatricNo("");
+    setStudentName("");
+    setEmail("");
+    setPhone("");
+    setStudentSignature(null);
+    setShown(false);
+    setBulkStudents([]);
+    slipRefs.current = [];
   }, [activePreset]);
 
   // ==== KRS generators ====
@@ -629,28 +561,43 @@ function KRSgenerator() {
     const year = new Date().getFullYear().toString().slice(-2);
     const randomId = Math.floor(Math.random() * 90000 + 10000);
     const id = year + (isRaharja ? "1" : "2") + randomId;
-    const ph = isRaharja ? "08" + Math.floor(Math.random() * 100000000) : "01" + Math.floor(Math.random() * 100000000);
+    const ph = isRaharja
+      ? "08" + Math.floor(Math.random() * 100000000)
+      : "01" + Math.floor(Math.random() * 100000000);
     const slug = name.split(" ")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
     const idSuffix = id.slice(-4);
     const emailDomain = PRESETS[activePreset].emailSuffix;
     const finalEmail = `${slug}${idSuffix}${emailDomain}`;
-    setStudentName(name); setMatricNo(id); setPhone(ph); setEmail(finalEmail);
+    setStudentName(name);
+    setMatricNo(id);
+    setPhone(ph);
+    setEmail(finalEmail);
   }
 
   function buildCoursesAndCredits() {
-    let courseSource, venueSource, docTitles;
+    let courseSource, venueSource, docTitles, daySource, labVenue, sectionText;
+
     if (activePreset === "RAHARJA") {
       courseSource = COURSES_RAHARJA;
       venueSource = VENUE_LIST_RAHARJA;
       docTitles = ["Ir.", "Dr.", "Bpk.", "Ibu"];
+      daySource = DAY_LIST_ID;
+      labVenue = "Lab Komputer";
+      sectionText = "Kls-A";
     } else if (activePreset === "IIUM") {
       courseSource = COURSES_IIUM;
       venueSource = VENUE_LIST_IIUM;
       docTitles = ["Dr.", "Prof.", "Assoc. Prof."];
+      daySource = DAY_LIST_EN;
+      labVenue = "Computer Lab";
+      sectionText = "Section 1";
     } else {
       courseSource = COURSES_UOC;
       venueSource = VENUE_LIST_UOC;
       docTitles = ["Dr.", "Prof.", "Mdm.", "Mr."];
+      daySource = DAY_LIST_EN;
+      labVenue = "Science Lab";
+      sectionText = "Group A";
     }
 
     const shuffled = [...courseSource].sort(() => Math.random() - 0.5);
@@ -659,19 +606,40 @@ function KRSgenerator() {
     let no = 1;
 
     for (let c of shuffled) {
-      const day = getRandom(DAY_LIST);
+      const day = getRandom(daySource);
       const time = getRandom(TIME_LIST);
       const venue = getRandom(venueSource);
-      const lecturerName = `${getRandom(docTitles)} ${generateFakerName(activePreset)}`;
-      selectedCourses.push({ no: no++, code: c.code, name: c.name, credits: c.credits, section: activePreset === "RAHARJA" ? "Kls-A" : "S1", day, time, venue, lecturer: lecturerName });
+      const lecturerName = `${getRandom(docTitles)} ${generateFakerName(
+        activePreset
+      )}`;
+
+      selectedCourses.push({
+        no: no++,
+        code: c.code,
+        name: c.name,
+        credits: c.credits,
+        section: sectionText,
+        day,
+        time,
+        venue,
+        lecturer: lecturerName,
+      });
       creditSum += c.credits;
+
       if (c.hasLab) {
         selectedCourses.push({
-          no: "", code: "", name: `${c.name} (Lab/Tutorial)`, credits: 0,
-          section: "-", day: getRandom(DAY_LIST), time: getRandom(TIME_LIST),
-          venue: activePreset === "UOC" ? "Science Lab" : "Lab Komputer", lecturer: "-"
+          no: "",
+          code: "",
+          name: `${c.name} (Lab/Tutorial)`,
+          credits: 0,
+          section: "-",
+          day: getRandom(daySource),
+          time: getRandom(TIME_LIST),
+          venue: labVenue,
+          lecturer: "-",
         });
       }
+
       if (creditSum >= 18 && selectedCourses.length > 5) break;
     }
     return { selectedCourses, creditSum };
@@ -709,7 +677,9 @@ function KRSgenerator() {
     const year = new Date().getFullYear().toString().slice(-2);
     const randomId = Math.floor(Math.random() * 90000 + 10000);
     const id = year + (isRaharja ? "1" : "2") + randomId;
-    const ph = isRaharja ? "08" + Math.floor(Math.random() * 100000000) : "01" + Math.floor(Math.random() * 100000000);
+    const ph = isRaharja
+      ? "08" + Math.floor(Math.random() * 100000000)
+      : "01" + Math.floor(Math.random() * 100000000);
     const slug = name.split(" ")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
     const idSuffix = id.slice(-4);
     const emailDomain = PRESETS[activePreset].emailSuffix;
@@ -760,16 +730,19 @@ function KRSgenerator() {
     const digits = String(Math.floor(Math.random() * 10000000)).padStart(7, "0");
     return `${getRandom(prefixes)}${digits}`;
   }
+
   function autoFillEducator() {
     const name = generateFakerName("IIUM");
     setEduName(name);
     setEduId(randomEduId());
     setBirthYear(String(1975 + Math.floor(Math.random() * 20)));
   }
+
   function handleGenerateSingleEducator() {
     if (!eduName || !eduId) autoFillEducator();
     setShown(true);
   }
+
   function handleGenerateBulkEducator() {
     const list = [];
     for (let i = 0; i < Math.max(1, Number(bulkCount) || 0); i++) {
@@ -780,346 +753,448 @@ function KRSgenerator() {
         birthYear: String(1975 + Math.floor(Math.random() * 20)),
       });
     }
-    setEduList(list); setShown(true); slipRefs.current = [];
+    setEduList(list);
+    setShown(true);
+    slipRefs.current = [];
   }
 
-  // ==== html2pdf utils ====
-function pdfOpts(filename) {
-  const UNSUPPORTED_COLOR_FUNCS = ["oklch(", "oklab(", "lab(", "lch(", "color("];
-
-  return {
-    margin: 0,
-    filename,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      dpi: 192,
-      letterRendering: true,
-      backgroundColor: "#ffffff",
-      onclone: (clonedDoc) => {
-        const win = clonedDoc.defaultView;
-        if (!win) return;
-
-        clonedDoc.querySelectorAll("*").forEach((el) => {
-          const st = win.getComputedStyle(el);
-
-          [
-            "color",
-            "background-color",
-            "border-color",
-            "outline-color",
-            "text-decoration-color",
-            "box-shadow", // kadang warna nyelip di sini
-          ].forEach((css) => {
-            const val = st.getPropertyValue(css);
-            if (val && UNSUPPORTED_COLOR_FUNCS.some((f) => val.includes(f))) {
-              // fallback kasar tapi aman buat html2canvas
-              if (css === "background-color") {
-                el.style.setProperty(css, "#ffffff", "important");
-              } else if (css === "box-shadow") {
-                el.style.setProperty(css, "none", "important");
-              } else {
-                el.style.setProperty(css, "#000000", "important");
-              }
-            }
-          });
-        });
-      },
-    },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-  };
-}
-
-  function sanitizeFilename(s) {
-    return s.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").slice(0, 90);
+  function normalizeNameForFile(name) {
+    if (!name) return "STUDENT";
+    return name
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^A-Z0-9-]/g, "");
   }
-  function downloadSingle(refEl, filename) {
+
+  async function downloadSingle(refEl, filename) {
     if (!refEl) return;
+
+    const pageEl =
+      refEl.querySelector && refEl.querySelector(".pdf-page")
+        ? refEl.querySelector(".pdf-page")
+        : refEl;
+
     setIsDownloading(true);
-    setTimeout(() => {
-      html2pdf()
-        .from(refEl)
-        .set(pdfOpts(filename))
-        .save()
-        .then(() => setIsDownloading(false))
-        .catch((e) => {
-          console.error(e);
-          alert("Gagal download PDF.");
-          setIsDownloading(false);
-        });
-    }, 250);
+    try {
+const scale = pdfRenderMode === "jspdf" ? 1.7 : 3;
+
+const blob = await elementToPdfBlobCanvas(pageEl, scale);
+      saveAs(blob, filename);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to download PDF.");
+    } finally {
+      setIsDownloading(false);
+    }
   }
+
   async function downloadBulkAsZip(prefix, refs, names) {
     if (!refs?.length) return;
     setIsDownloading(true);
     try {
       const zip = new JSZip();
       for (let i = 0; i < refs.length; i++) {
-        const el = refs[i];
-        if (!el) continue;
-        const fname = sanitizeFilename(`${prefix}_${names[i]}.pdf`);
-        const blob = await new Promise((resolve, reject) => {
-          html2pdf()
-            .from(el)
-            .set(pdfOpts(fname))
-            .toPdf()
-            .get("pdf")
-            .then((pdf) => resolve(pdf.output("blob")))
-            .catch(reject);
-        });
+        const wrapperEl = refs[i];
+        if (!wrapperEl) continue;
+
+        const pageEl =
+          wrapperEl.querySelector && wrapperEl.querySelector(".pdf-page")
+            ? wrapperEl.querySelector(".pdf-page")
+            : wrapperEl;
+
+        const fname = `${prefix}_${names[i]}.pdf`;
+        const scale = pdfRenderMode === "jspdf" ? 1.7 : 3;
+        const blob = await elementToPdfBlobCanvas(pageEl, scale);
         zip.file(fname, blob);
       }
       const zipBlob = await zip.generateAsync({ type: "blob" });
       saveAs(zipBlob, `${prefix}_bundle_${refs.length}.zip`);
     } catch (e) {
       console.error(e);
-      alert("Gagal membuat ZIP.");
+      alert("Failed to create ZIP.");
     } finally {
       setIsDownloading(false);
     }
   }
-
   const L = PRESETS[activePreset].labels;
   const C = PRESETS[activePreset];
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-200 p-4 md:p-8 font-sans">
+    <div
+      className="min-h-screen bg-slate-900 text-slate-200 p-4 md:p-8 font-sans"
+      style={{ WebkitTextSizeAdjust: "100%" }}
+    >
       {/* Top toggles */}
       <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-3 mb-4">
         <div className="flex gap-2">
           <button
             onClick={() => setDocMode("krs")}
-            className={`px-3 py-1 rounded ${docMode === "krs" ? "bg-purple-600" : "bg-slate-700"}`}
+            className={`px-3 py-1 rounded ${
+              docMode === "krs" ? "bg-purple-600" : "bg-slate-700"
+            }`}
           >
             KRS Generator
           </button>
           <button
             onClick={() => setDocMode("educator")}
-            className={`px-3 py-1 rounded ${docMode === "educator" ? "bg-purple-600" : "bg-slate-700"}`}
+            className={`px-3 py-1 rounded ${
+              docMode === "educator" ? "bg-purple-600" : "bg-slate-700"
+            }`}
           >
             Educator Summary
           </button>
-        </div>
-        <div className="flex gap-2 ml-auto">
           <button
-            onClick={() => setMode("single")}
-            className={`px-3 py-1 rounded ${mode === "single" ? "bg-blue-600" : "bg-slate-700"}`}
+            onClick={() => setDocMode("teaching")}
+            className={`px-3 py-1 rounded ${
+              docMode === "teaching" ? "bg-purple-600" : "bg-slate-700"
+            }`}
           >
-            Single
+            Teaching Employment Letter
           </button>
-          <button
-            onClick={() => setMode("bulk")}
-            className={`px-3 py-1 rounded ${mode === "bulk" ? "bg-blue-600" : "bg-slate-700"}`}
-          >
-            Bulk
-          </button>
-          {mode === "bulk" && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Jumlah</span>
-              <input
-                type="number"
-                min={1}
-                max={200}
-                value={bulkCount}
-                onChange={(e) => setBulkCount(e.target.value)}
-                className="w-20 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-              />
-            </div>
-          )}
         </div>
+
+        {/* PDF Engine & mode hanya untuk KRS / Educator */}
+        {docMode !== "teaching" && (
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-xs text-slate-400">PDF Engine</span>
+            <select
+              value={pdfRenderMode}
+              onChange={(e) => setPdfRenderMode(e.target.value)}
+              className="bg-slate-800 border border-slate-600 text-xs rounded px-2 py-1"
+            >
+              <option value="canvas">PDF HD (tajam)</option>
+              <option value="jspdf">PDF Lite (file lebih kecil)</option>
+            </select>
+
+            <button
+              onClick={() => setMode("single")}
+              className={`px-3 py-1 rounded ${
+                mode === "single" ? "bg-blue-600" : "bg-slate-700"
+              }`}
+            >
+              Single
+            </button>
+            <button
+              onClick={() => setMode("bulk")}
+              className={`px-3 py-1 rounded ${
+                mode === "bulk" ? "bg-blue-600" : "bg-slate-700"
+              }`}
+            >
+              Bulk
+            </button>
+            {mode === "bulk" && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">Jumlah</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={bulkCount}
+                  onChange={(e) => setBulkCount(e.target.value)}
+                  className="w-20 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="max-w-6xl mx-auto grid md:grid-cols-12 gap-6">
-        {/* LEFT CONTROL PANEL */}
-        <div className="md:col-span-4 space-y-4">
-          {docMode === "krs" ? (
-            <div className="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
-              <div className="flex items-center justify-between border-b border-slate-700 pb-2 mb-4">
-                <h2 className="text-lg font-bold">⚙️ Data Mahasiswa</h2>
-                <span className="text-[10px] bg-slate-700 px-2 py-1 rounded text-blue-300">
-                  {semesterText}
-                </span>
-              </div>
-
-              <div className="flex gap-2 mb-3">
-                {Object.keys(PRESETS).map((key) => (
-                  <button
-                    key={key}
-                    onClick={() => setActivePreset(key)}
-                    className={`px-3 py-1 rounded text-xs ${
-                      activePreset === key ? "bg-emerald-600" : "bg-slate-700"
-                    }`}
-                  >
-                    {key}
-                  </button>
-                ))}
-              </div>
-
-              {mode === "single" && (
-                <div className="flex items-end gap-2 mb-3">
-                  <div className="flex-1">
-                    <InputGroup
-                      label={L.id}
-                      value={matricNo}
-                      onChange={(e) => setMatricNo(e.target.value)}
-                      placeholder="Generate Auto..."
-                    />
-                  </div>
-                  <button
-                    onClick={autoFillStudent}
-                    className="bg-slate-600 h-[38px] px-3 rounded hover:bg-slate-500 text-xs text-white font-semibold mb-[1px]"
-                  >
-                    Auto
-                  </button>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <InputGroup label={L.studentName} value={studentName} onChange={(e) => setStudentName(e.target.value)} />
-                <InputGroup label={L.faculty} value={faculty} onChange={(e) => setFaculty(e.target.value)} />
-                <InputGroup label={L.dept} value={department} onChange={(e) => setDepartment(e.target.value)} />
-                <div className="grid grid-cols-2 gap-2">
-                  <InputGroup label={L.level} value={level} onChange={(e) => setLevel(e.target.value)} />
-                  <InputGroup label={L.section} value={section} onChange={(e) => setSection(e.target.value)} />
-                </div>
-                <InputGroup label="Email (Official)" value={email} onChange={(e) => setEmail(e.target.value)} />
-                <InputGroup label="No. Handphone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-
-                <div className="mt-4 pt-4 border-t border-slate-700">
-                  <label className="block font-semibold text-xs text-slate-400 uppercase mb-2">
-                    Tanda Tangan Mahasiswa (Opsional)
-                  </label>
-                  <signature-maker
-                    id="signatureMaker"
-                    data-with-submit="false"
-                    data-download-on-save="false"
-                    data-clear-button-text="Hapus"
-                    data-undo-button-text="Undo"
-                    data-save-button-text="Simpan / Apply"
-                    data-canvas-class="bg-white rounded-lg w-full h-32"
-                    data-save-button-class="hidden"
-                    class="block w-full"
-                  ></signature-maker>
-                  {mode === "bulk" && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <input
-                        id="applyAll"
-                        type="checkbox"
-                        checked={applySignatureToAll}
-                        onChange={(e) => setApplySignatureToAll(e.target.checked)}
-                      />
-                      <label htmlFor="applyAll" className="text-xs text-slate-300">
-                        Gunakan tanda tangan yang sama untuk semua (kalau digambar).
-                        Kalau tidak, tiap mahasiswa auto.
-                      </label>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {mode === "single" ? (
-                <button
-                  onClick={handleGenerateSingleKRS}
-                  className="w-full mt-6 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold py-3 rounded-lg shadow-lg"
-                >
-                  ⚡ Generate Preview (KRS)
-                </button>
-              ) : (
-                <button
-                  onClick={handleGenerateBulkKRS}
-                  className="w-full mt-6 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold py-3 rounded-lg shadow-lg"
-                >
-                  ⚡ Generate Preview (Bulk KRS)
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
-              <div className="flex items-center justify-between border-b border-slate-700 pb-2 mb-4">
-                <h2 className="text-lg font-bold">🎓 Educator Summary</h2>
-                <span className="text-[10px] bg-slate-700 px-2 py-1 rounded text-blue-300">
-                  Layout mirip sample
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Organization</label>
-                  <select
-                    className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm"
-                    value={eduOrg.name}
-                    onChange={(e) =>
-                      setEduOrg(EDU_ORGS.find((x) => x.name === e.target.value) || EDU_ORGS[0])
-                    }
-                  >
-                    {EDU_ORGS.map((o) => (
-                      <option key={o.name} value={o.name}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <InputGroup label="Full Name" value={eduName} onChange={(e) => setEduName(e.target.value)} />
-                <InputGroup label="Educator ID" value={eduId} onChange={(e) => setEduId(e.target.value)} />
-                <InputGroup label="Birth Year" value={birthYear} onChange={(e) => setBirthYear(e.target.value)} />
-                <div className="flex gap-2">
-                  <button onClick={autoFillEducator} className="bg-slate-600 px-3 py-2 rounded text-xs">
-                    Auto
-                  </button>
-                  <span className="text-xs text-slate-400 self-center">
-                    Auto nama / ID / tahun lahir
+      {/* Kalau teaching → tampilkan satu halaman TeachingEmploymentLetter saja */}
+      {docMode === "teaching" ? (
+        <TeachingEmploymentLetter />
+      ) : (
+        <div className="max-w-6xl mx-auto grid md:grid-cols-12 gap-6">
+          {/* LEFT CONTROL PANEL */}
+          <div className="md:col-span-4 space-y-4">
+            {docMode === "krs" ? (
+              <div className="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <div className="flex items-center justify-between border-b border-slate-700 pb-2 mb-4">
+                  <h2 className="text-lg font-bold">⚙️ Data Mahasiswa</h2>
+                  <span className="text-[10px] bg-slate-700 px-2 py-1 rounded text-blue-300">
+                    {semesterText}
                   </span>
                 </div>
+
+                <div className="flex gap-2 mb-3">
+                  {Object.keys(PRESETS).map((key) => (
+                    <button
+                      key={key}
+                      onClick={() => setActivePreset(key)}
+                      className={`px-3 py-1 rounded text-xs ${
+                        activePreset === key ? "bg-emerald-600" : "bg-slate-700"
+                      }`}
+                    >
+                      {key}
+                    </button>
+                  ))}
+                </div>
+
+                {mode === "single" && (
+                  <div className="flex items-end gap-2 mb-3">
+                    <div className="flex-1">
+                      <InputGroup
+                        label={L.id}
+                        value={matricNo}
+                        onChange={(e) => setMatricNo(e.target.value)}
+                        placeholder="Generate Auto..."
+                      />
+                    </div>
+                    <button
+                      onClick={autoFillStudent}
+                      className="bg-slate-600 h-[38px] px-3 rounded hover:bg-slate-500 text-xs text-white font-semibold mb-[1px]"
+                    >
+                      Auto
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <InputGroup
+                    label={L.studentName}
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                  />
+                  <InputGroup
+                    label={L.faculty}
+                    value={faculty}
+                    onChange={(e) => setFaculty(e.target.value)}
+                  />
+                  <InputGroup
+                    label={L.dept}
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputGroup
+                      label={L.level}
+                      value={level}
+                      onChange={(e) => setLevel(e.target.value)}
+                    />
+                    <InputGroup
+                      label={L.section}
+                      value={section}
+                      onChange={(e) => setSection(e.target.value)}
+                    />
+                  </div>
+                  <InputGroup
+                    label="Email (Official)"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  <InputGroup
+                    label="No. Handphone"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+
+                  <div className="mt-4 pt-4 border-t border-slate-700">
+                    <label className="block font-semibold text-xs text-slate-400 uppercase mb-2">
+                      Tanda Tangan Mahasiswa (Opsional)
+                    </label>
+                    <signature-maker
+                      id="signatureMaker"
+                      data-with-submit="false"
+                      data-download-on-save="false"
+                      data-clear-button-text="Hapus"
+                      data-undo-button-text="Undo"
+                      data-save-button-text="Simpan / Apply"
+                      data-canvas-class="bg-white rounded-lg w-full h-32"
+                      data-save-button-class="hidden"
+                      class="block w-full"
+                    ></signature-maker>
+                    {mode === "bulk" && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          id="applyAll"
+                          type="checkbox"
+                          checked={applySignatureToAll}
+                          onChange={(e) =>
+                            setApplySignatureToAll(e.target.checked)
+                          }
+                        />
+                        <label
+                          htmlFor="applyAll"
+                          className="text-xs text-slate-300"
+                        >
+                          Gunakan tanda tangan yang sama untuk semua (kalau
+                          digambar). Kalau tidak, tiap mahasiswa auto.
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {mode === "single" ? (
+                  <button
+                    onClick={handleGenerateSingleKRS}
+                    className="w-full mt-6 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold py-3 rounded-lg shadow-lg"
+                  >
+                    ⚡ Generate Preview (KRS)
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleGenerateBulkKRS}
+                    className="w-full mt-6 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold py-3 rounded-lg shadow-lg"
+                  >
+                    ⚡ Generate Preview (Bulk KRS)
+                  </button>
+                )}
               </div>
+            ) : (
+              <div className="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <div className="flex items-center justify-between border-b border-slate-700 pb-2 mb-4">
+                  <h2 className="text-lg font-bold">🎓 Educator Summary</h2>
+                  <span className="text-[10px] bg-slate-700 px-2 py-1 rounded text-blue-300">
+                    Layout mirip sample
+                  </span>
+                </div>
 
-              {mode === "single" ? (
-                <button
-                  onClick={handleGenerateSingleEducator}
-                  className="w-full mt-6 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-3 rounded-lg shadow-lg"
-                >
-                  ⚡ Generate Preview (Educator)
-                </button>
-              ) : (
-                <button
-                  onClick={handleGenerateBulkEducator}
-                  className="w-full mt-6 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-3 rounded-lg shadow-lg"
-                >
-                  ⚡ Generate Preview (Bulk Educator)
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">
+                      Organization
+                    </label>
+                    <select
+                      className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm"
+                      value={eduOrg.name}
+                      onChange={(e) =>
+                        setEduOrg(
+                          EDU_ORGS.find((x) => x.name === e.target.value) ||
+                            EDU_ORGS[0]
+                        )
+                      }
+                    >
+                      {EDU_ORGS.map((o) => (
+                        <option key={o.name} value={o.name}>
+                          {o.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <InputGroup
+                    label="Full Name"
+                    value={eduName}
+                    onChange={(e) => setEduName(e.target.value)}
+                  />
+                  <InputGroup
+                    label="Educator ID"
+                    value={eduId}
+                    onChange={(e) => setEduId(e.target.value)}
+                  />
+                  <InputGroup
+                    label="Birth Year"
+                    value={birthYear}
+                    onChange={(e) => setBirthYear(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={autoFillEducator}
+                      className="bg-slate-600 px-3 py-2 rounded text-xs"
+                    >
+                      Auto
+                    </button>
+                    <span className="text-xs text-slate-400 self-center">
+                      Auto nama / ID / tahun lahir
+                    </span>
+                  </div>
+                </div>
 
-        {/* RIGHT PREVIEW */}
-        <div className="md:col-span-8">
-          {shown ? (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
-                <span className="text-sm text-slate-300 font-semibold">
-                  {docMode === "krs"
-                    ? mode === "single"
-                      ? "📄 Preview KRS"
-                      : `📄 Preview Bulk KRS: ${bulkStudents.length} slips`
-                    : mode === "single"
-                    ? "📄 Preview Educator Summary"
-                    : `📄 Preview Bulk Educator: ${eduList.length} docs`}
-                </span>
-                <div className="flex items-center gap-2">
-                  {docMode === "krs" ? (
-                    mode === "single" ? (
+                {mode === "single" ? (
+                  <button
+                    onClick={handleGenerateSingleEducator}
+                    className="w-full mt-6 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-3 rounded-lg shadow-lg"
+                  >
+                    ⚡ Generate Preview (Educator)
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleGenerateBulkEducator}
+                    className="w-full mt-6 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-3 rounded-lg shadow-lg"
+                  >
+                    ⚡ Generate Preview (Bulk Educator)
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT PREVIEW (KRS / Educator saja) */}
+          <div className="md:col-span-8">
+            {shown ? (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
+                  <span className="text-sm text-slate-300 font-semibold">
+                    {docMode === "krs"
+                      ? mode === "single"
+                        ? "📄 Preview KRS"
+                        : `📄 Preview Bulk KRS: ${bulkStudents.length} slips`
+                      : mode === "single"
+                      ? "📄 Preview Educator Summary"
+                      : `📄 Preview Bulk Educator: ${eduList.length} docs`}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {docMode === "krs" ? (
+                      mode === "single" ? (
+                        <button
+                          onClick={() =>
+                            downloadSingle(
+                              singleSlipRef.current,
+                              `${
+                                C.id || activePreset
+                              }_${matricNo || "ID"}_${normalizeNameForFile(
+                                studentName
+                              )}.pdf`
+                            )
+                          }
+                          disabled={isDownloading}
+                          className={`text-white text-sm px-5 py-2 rounded ${
+                            isDownloading
+                              ? "bg-gray-500 cursor-not-allowed"
+                              : "bg-red-600 hover:bg-red-500"
+                          }`}
+                        >
+                          {isDownloading ? "Processing..." : "⬇️ Download PDF"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            downloadBulkAsZip(
+                              C.id || activePreset,
+                              slipRefs.current,
+                              bulkStudents.map(
+                                (r) =>
+                                  `${r.student.id}_${normalizeNameForFile(
+                                    r.student.name
+                                  )}`
+                              )
+                            )
+                          }
+                          disabled={isDownloading}
+                          className={`text-white text-sm px-5 py-2 rounded ${
+                            isDownloading
+                              ? "bg-gray-500 cursor-not-allowed"
+                              : "bg-emerald-600 hover:bg-emerald-500"
+                          }`}
+                        >
+                          {isDownloading
+                            ? "Processing..."
+                            : "⬇️ Download ZIP (per PDF)"}
+                        </button>
+                      )
+                    ) : mode === "single" ? (
                       <button
                         onClick={() =>
                           downloadSingle(
                             singleSlipRef.current,
-                            `${activePreset}_KRS_${matricNo || "document"}.pdf`
+                            `Educator_${eduId || "document"}.pdf`
                           )
                         }
                         disabled={isDownloading}
                         className={`text-white text-sm px-5 py-2 rounded ${
-                          isDownloading ? "bg-gray-500 cursor-not-allowed" : "bg-red-600 hover:bg-red-500"
+                          isDownloading
+                            ? "bg-gray-500 cursor-not-allowed"
+                            : "bg-red-600 hover:bg-red-500"
                         }`}
                       >
                         {isDownloading ? "Processing..." : "⬇️ Download PDF"}
@@ -1128,75 +1203,89 @@ function pdfOpts(filename) {
                       <button
                         onClick={() =>
                           downloadBulkAsZip(
-                            `${activePreset}_KRS`,
+                            `Educators`,
                             slipRefs.current,
-                            bulkStudents.map((r) => `${r.student.id}_${r.student.name}`)
+                            eduList.map(
+                              (r) => `${r.educatorId}_${r.fullName}`
+                            )
                           )
                         }
                         disabled={isDownloading}
                         className={`text-white text-sm px-5 py-2 rounded ${
-                          isDownloading ? "bg-gray-500 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-500"
+                          isDownloading
+                            ? "bg-gray-500 cursor-not-allowed"
+                            : "bg-emerald-600 hover:bg-emerald-500"
                         }`}
                       >
-                        {isDownloading ? "Processing..." : "⬇️ Download ZIP (per PDF)"}
+                        {isDownloading
+                          ? "Processing..."
+                          : "⬇️ Download ZIP (per PDF)"}
                       </button>
-                    )
-                  ) : mode === "single" ? (
-                    <button
-                      onClick={() =>
-                        downloadSingle(singleSlipRef.current, `Educator_${eduId || "document"}.pdf`)
-                      }
-                      disabled={isDownloading}
-                      className={`text-white text-sm px-5 py-2 rounded ${
-                        isDownloading ? "bg-gray-500 cursor-not-allowed" : "bg-red-600 hover:bg-red-500"
-                      }`}
-                    >
-                      {isDownloading ? "Processing..." : "⬇️ Download PDF"}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() =>
-                        downloadBulkAsZip(
-                          `Educators`,
-                          slipRefs.current,
-                          eduList.map((r) => `${r.educatorId}_${r.fullName}`)
-                        )
-                      }
-                      disabled={isDownloading}
-                      className={`text-white text-sm px-5 py-2 rounded ${
-                        isDownloading ? "bg-gray-500 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-500"
-                      }`}
-                    >
-                      {isDownloading ? "Processing..." : "⬇️ Download ZIP (per PDF)"}
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* CANVAS PREVIEW AREA */}
-              {docMode === "krs" ? (
-                mode === "single" ? (
+                {/* PREVIEW AREA */}
+                {docMode === "krs" ? (
+                  mode === "single" ? (
+                    <div className="overflow-auto pb-10 flex justify-center">
+                      <div ref={singleSlipRef}>
+                        <SlipKRS
+                          C={C}
+                          L={L}
+                          uniName={uniName}
+                          semesterText={semesterText}
+                          student={{
+                            name: studentName || "",
+                            id: matricNo || "",
+                            faculty,
+                            department,
+                            level,
+                            section,
+                            email,
+                            phone,
+                          }}
+                          courses={courses}
+                          totalCredits={totalCredits}
+                          generatedAt={generatedAt}
+                          studentSignatureBase64={studentSignature}
+                          isLast
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-auto pb-10 flex justify-center">
+                      <div ref={bulkContainerRef}>
+                        {bulkStudents.map((row, i) => (
+                          <div
+                            key={row.student.id}
+                            ref={(el) => (slipRefs.current[i] = el)}
+                          >
+                            <SlipKRS
+                              C={C}
+                              L={L}
+                              uniName={uniName}
+                              semesterText={semesterText}
+                              student={row.student}
+                              courses={row.courses}
+                              totalCredits={row.totalCredits}
+                              generatedAt={row.generatedAt}
+                              studentSignatureBase64={row.signature}
+                              isLast={i === bulkStudents.length - 1}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                ) : mode === "single" ? (
                   <div className="overflow-auto pb-10 flex justify-center">
                     <div ref={singleSlipRef}>
-                      <SlipKRS
-                        C={C}
-                        L={L}
-                        uniName={uniName}
-                        semesterText={semesterText}
-                        student={{
-                          name: studentName || "",
-                          id: matricNo || "",
-                          faculty,
-                          department,
-                          level,
-                          section,
-                          email,
-                          phone,
-                        }}
-                        courses={courses}
-                        totalCredits={totalCredits}
-                        generatedAt={generatedAt}
-                        studentSignatureBase64={studentSignature}
+                      <EducatorSummarySlip
+                        org={eduOrg}
+                        educatorId={eduId || randomEduId()}
+                        fullName={eduName || generateFakerName("IIUM")}
+                        birthYear={birthYear || "1990"}
                         isLast
                       />
                     </div>
@@ -1204,59 +1293,36 @@ function pdfOpts(filename) {
                 ) : (
                   <div className="overflow-auto pb-10 flex justify-center">
                     <div ref={bulkContainerRef}>
-                      {bulkStudents.map((row, i) => (
-                        <div key={row.student.id} ref={(el) => (slipRefs.current[i] = el)}>
-                          <SlipKRS
-                            C={C}
-                            L={L}
-                            uniName={uniName}
-                            semesterText={semesterText}
-                            student={row.student}
-                            courses={row.courses}
-                            totalCredits={row.totalCredits}
-                            generatedAt={row.generatedAt}
-                            studentSignatureBase64={row.signature}
-                            isLast={i === bulkStudents.length - 1}
+                      {eduList.map((r, i) => (
+                        <div
+                          key={r.educatorId}
+                          ref={(el) => (slipRefs.current[i] = el)}
+                        >
+                          <EducatorSummarySlip
+                            {...r}
+                            isLast={i === eduList.length - 1}
                           />
                         </div>
                       ))}
                     </div>
                   </div>
-                )
-              ) : mode === "single" ? (
-                <div className="overflow-auto pb-10 flex justify-center">
-                  <div ref={singleSlipRef}>
-                    <EducatorSummarySlip
-                      org={eduOrg}
-                      educatorId={eduId || randomEduId()}
-                      fullName={eduName || generateFakerName("IIUM")}
-                      birthYear={birthYear || "1990"}
-                      isLast
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="overflow-auto pb-10 flex justify-center">
-                  <div ref={bulkContainerRef}>
-                    {eduList.map((r, i) => (
-                      <div key={r.educatorId} ref={(el) => (slipRefs.current[i] = el)}>
-                        <EducatorSummarySlip {...r} isLast={i === eduList.length - 1} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="h-96 flex flex-col items-center justify-center bg-slate-800 rounded-xl border-2 border-dashed border-slate-700 text-slate-500">
-              <span className="text-5xl mb-4">📄</span>
-              <p>
-                Klik tombol <span className="text-purple-400 font-bold">"Generate Preview"</span> di sebelah kiri.
-              </p>
-            </div>
-          )}
+                )}
+              </div>
+            ) : (
+              <div className="h-96 flex flex-col items-center justify-center bg-slate-800 rounded-xl border-2 border-dashed border-slate-700 text-slate-500">
+                <span className="text-5xl mb-4">📄</span>
+                <p>
+                  Klik tombol{" "}
+                  <span className="text-purple-400 font-bold">
+                    "Generate Preview"
+                  </span>{" "}
+                  di sebelah kiri.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

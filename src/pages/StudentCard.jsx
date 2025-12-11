@@ -23,7 +23,7 @@ const TEMPLATES = [
   {
     id: 1,
     name: 'STMIK PGRI Tangerang',
-    file: '/student-card/template_pgri.jpg',
+    file: '/student-card/template-std-card-pgri.jpg',
   },
   {
     id: 2,
@@ -48,6 +48,9 @@ function StudentCard() {
   const cardRef = useRef(null);
   const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0]);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [cardSize, setCardSize] = useState({ width: 800, height: 500 });
+  const [layoutMode, setLayoutMode] = useState('classic'); // 'classic' / 'stacked'
+  const [textLayout, setTextLayout] = useState('colon');
 
   // State untuk Data Teks
   const [formData, setFormData] = useState({
@@ -57,11 +60,12 @@ function StudentCard() {
     dob: 'FEBRUARY 14, 2004',
     issuedDate: 'SEPTEMBER 1, 2023',
     expirationDate: 'SEPTEMBER 2027',
+    semester: 'SECOND SEMESTER',
   });
 
   const [photo, setPhoto] = useState(null);
 
-  // State Posisi (Default)
+  // State Posisi Foto
   const [photoState, setPhotoState] = useState({
     x: 65,
     y: 160,
@@ -69,10 +73,12 @@ function StudentCard() {
     height: 230,
   });
 
-  // State Text: Posisi, Scale, Warna, Font
+  // --- PERUBAHAN 1: Update textState untuk menyimpan width & height ---
   const [textState, setTextState] = useState({
     x: 340,
     y: 190,
+    width: 420,     // Default width
+    height: 'auto', // Default height auto (atau angka jika mau fixed)
     scale: 1,
     color: '#1e293b',
     fontFamily: 'Arial, sans-serif',
@@ -109,26 +115,64 @@ function StudentCard() {
 
   const handleResetLayout = () => {
     setPhotoState({ x: 65, y: 160, width: 200, height: 230 });
+    // Reset Text ke default size
     setTextState({
       x: 340,
       y: 190,
+      width: 420,
+      height: 'auto',
       scale: 1,
       color: '#1e293b',
       fontFamily: 'Arial, sans-serif',
     });
   };
+  const applyTextPreset = (preset) => {
+  const padding = 40; // jarak dari pinggir kartu
+
+  setTextState((prev) => {
+    const width = typeof prev.width === 'number' ? prev.width : parseFloat(prev.width) || 400;
+
+    switch (preset) {
+      case 'top-left':
+        return { ...prev, x: padding, y: padding };
+      case 'top-right':
+        return { ...prev, x: cardSize.width - width - padding, y: padding };
+      case 'middle-left':
+        return { ...prev, x: padding, y: cardSize.height / 2 - 80 };
+      case 'middle-right':
+        return {
+          ...prev,
+          x: cardSize.width - width - padding,
+          y: cardSize.height / 2 - 80,
+        };
+      case 'bottom-left':
+        return { ...prev, x: padding, y: cardSize.height - 160 };
+      case 'bottom-right':
+        return {
+          ...prev,
+          x: cardSize.width - width - padding,
+          y: cardSize.height - 160,
+        };
+      default:
+        return prev;
+    }
+  });
+};
 
   // --- FUNGSI DOWNLOAD MULTI-FORMAT ---
   const handleDownload = async (format = 'png') => {
     if (!cardRef.current) return;
     setShowDownloadMenu(false);
 
-    // Hanya sembunyikan helper yang memang khusus untuk download
+    // Sembunyikan helper border saat download
     const helpers = cardRef.current.querySelectorAll('.download-helper');
     helpers.forEach((el) => {
       el.dataset._prevOpacity = el.style.opacity || '';
       el.style.opacity = '0';
     });
+
+    // Sembunyikan juga resize handle Rnd saat download (class react-draggable)
+    // Note: Biasanya html2canvas mengabaikan elemen kosong, tapi border helper perlu dihandle
 
     try {
       const canvas = await html2canvas(cardRef.current, {
@@ -162,7 +206,6 @@ function StudentCard() {
     } catch (error) {
       console.error('Gagal generate gambar:', error);
     } finally {
-      // Apapun yang terjadi, kembalikan opacity helper
       helpers.forEach((el) => {
         el.style.opacity = el.dataset._prevOpacity || '';
         delete el.dataset._prevOpacity;
@@ -303,9 +346,6 @@ function StudentCard() {
                   className="hidden"
                 />
               </label>
-              <p className="text-[10px] text-gray-500 mt-2 italic text-center">
-                *Tips: Tarik sudut foto di preview kanan untuk resize.
-              </p>
             </div>
 
             {/* 3. Text Styling */}
@@ -313,7 +353,7 @@ function StudentCard() {
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2 tracking-wider flex justify-between">
                   <span className="flex items-center gap-2">
-                    <Type size={14} /> Ukuran Teks
+                    <Type size={14} /> Ukuran Font (Zoom)
                   </span>
                   <span className="text-purple-400">
                     {Math.round(textState.scale * 100)}%
@@ -382,6 +422,85 @@ function StudentCard() {
                   </select>
                 </div>
               </div>
+            </div>
+             <div className="mt-4">
+  <label className="block text-xs font-bold text-gray-400 uppercase mb-2 tracking-wider">
+    Posisi Cepat (Snap)
+  </label>
+  <div className="grid grid-cols-2 gap-1 text-[10px]">
+    <button
+      type="button"
+      onClick={() => applyTextPreset('top-left')}
+      className="px-2 py-1 bg-[#0f0c29] border border-white/10 rounded hover:border-purple-500"
+    >
+      Atas Kiri
+    </button>
+    <button
+      type="button"
+      onClick={() => applyTextPreset('top-right')}
+      className="px-2 py-1 bg-[#0f0c29] border border-white/10 rounded hover:border-purple-500"
+    >
+      Atas Kanan
+    </button>
+
+    <button
+      type="button"
+      onClick={() => applyTextPreset('middle-left')}
+      className="px-2 py-1 bg-[#0f0c29] border border-white/10 rounded hover:border-purple-500"
+    >
+      Tengah Kiri
+    </button>
+    <button
+      type="button"
+      onClick={() => applyTextPreset('middle-right')}
+      className="px-2 py-1 bg-[#0f0c29] border border-white/10 rounded hover:border-purple-500"
+    >
+      Tengah Kanan
+    </button>
+
+    <button
+      type="button"
+      onClick={() => applyTextPreset('bottom-left')}
+      className="px-2 py-1 bg-[#0f0c29] border border-white/10 rounded hover:border-purple-500"
+    >
+      Bawah Kiri
+    </button>
+    <button
+      type="button"
+      onClick={() => applyTextPreset('bottom-right')}
+      className="px-2 py-1 bg-[#0f0c29] border border-white/10 rounded hover:border-purple-500"
+    >
+      Bawah Kanan
+    </button>
+  </div>
+</div>
+
+            <div className="mt-4">
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-2 tracking-wider">
+            Layout Teks
+            </label>
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <button
+            type="button"
+            onClick={() => setTextLayout('colon')}
+            className={`px-2 py-1 rounded border transition
+            ${textLayout === 'colon'
+            ? 'bg-purple-600 border-purple-500 text-white'
+            : 'bg-[#0f0c29] border-white/10 text-gray-300'}`}
+            >
+            NAME : VALUE
+            </button>
+            <button
+            type="button"
+            onClick={() => setTextLayout('stacked')}
+            className={`px-2 py-1 rounded border transition
+            ${textLayout === 'stacked'
+            ? 'bg-purple-600 border-purple-500 text-white'
+            : 'bg-[#0f0c29] border-white/10 text-gray-300'}`}
+            >
+            Atas / Bawah
+            </button>
+            </div>
             </div>
 
             {/* 4. Form Input */}
@@ -474,16 +593,43 @@ function StudentCard() {
           <div className="bg-[#1e1b36] p-4 rounded-2xl shadow-2xl border border-white/10">
             <div className="relative shadow-2xl rounded-lg overflow-hidden bg-white">
               {/* Canvas Utama */}
-              <div
-                ref={cardRef}
-                className="relative w-[800px] h-[500px] bg-white overflow-hidden select-none"
-              >
-                {/* LAYER 1: Background Template */}
-                <img
-                  src={selectedTemplate.file}
-                  alt="Template"
-                  className="absolute top-0 left-0 w-full h-full object-cover pointer-events-none z-0"
-                />
+                  <div
+              ref={cardRef}
+              className="relative bg-white overflow-hidden select-none"
+              style={{
+                width: `${cardSize.width}px`,
+                height: `${cardSize.height}px`,
+              }}
+            >
+
+             <img
+  src={selectedTemplate.file}
+  alt="Template"
+  onLoad={(e) => {
+    const img = e.currentTarget;
+    const naturalWidth = img.naturalWidth;
+    const naturalHeight = img.naturalHeight;
+
+    // Batas maksimal ukuran kartu di layar (bebas kamu set)
+    const maxWidth = 800;
+    const maxHeight = 500;
+
+    // Hitung scale supaya muat di batas, tapi tetap ratio asli
+    const scale = Math.min(
+      maxWidth / naturalWidth,
+      maxHeight / naturalHeight,
+      1 // jangan lebih besar dari ukuran asli
+    );
+
+    setCardSize({
+      width: naturalWidth * scale,
+      height: naturalHeight * scale,
+    });
+  }}
+  className="absolute inset-0 w-full h-full object-fill pointer-events-none z-0"
+/>
+
+
 
                 {/* LAYER 2: Resizable & Draggable PHOTO */}
                 <Rnd
@@ -511,7 +657,7 @@ function StudentCard() {
                   className="z-10 group"
                 >
                   <div className="w-full h-full relative">
-                    {/* Visual Helper Border (khusus download-helper) */}
+                    {/* Visual Helper Border */}
                     <div className="download-helper absolute -inset-1 border-2 border-dashed border-transparent group-hover:border-purple-500 z-50 pointer-events-none transition-colors rounded-lg opacity-70" />
 
                     {/* Hexagon Shape */}
@@ -535,69 +681,148 @@ function StudentCard() {
                   </div>
                 </Rnd>
 
-                {/* LAYER 3: Draggable TEXT INFO (With Scale, Color & Font) */}
-                <Rnd
-                  position={{ x: textState.x, y: textState.y }}
-                  onDragStop={(e, d) =>
-                    setTextState((prev) => ({ ...prev, x: d.x, y: d.y }))
-                  }
-                  enableResizing={false}
-                  bounds="parent"
-                  className="z-20 group"
-                >
-                  <div
-                    className="p-2 border-2 border-transparent group-hover:border-dashed group-hover:border-purple-500 rounded cursor-move relative"
-                    style={{
-                      transform: `scale(${textState.scale})`,
-                      transformOrigin: 'top left',
-                      color: textState.color,
-                      fontFamily: textState.fontFamily,
-                    }}
-                  >
-                    {/* Drag Handle Indicator */}
-                    <div className="absolute -top-3 -right-3 bg-purple-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition shadow-sm">
-                      <Type size={10} />
-                    </div>
+               {/* LAYER 3: Draggable & Resizable TEXT INFO */}
+<Rnd
+  size={{ width: textState.width, height: textState.height }}
+  position={{ x: textState.x, y: textState.y }}
+  onDragStop={(e, d) =>
+    setTextState((prev) => ({ ...prev, x: d.x, y: d.y }))
+  }
+  onResizeStop={(e, direction, ref, delta, position) => {
+    setTextState((prev) => ({
+      ...prev,
+      width: ref.style.width,
+      height: ref.style.height,
+      ...position,
+    }));
+  }}
+  // Aktifkan resize hanya kiri-kanan (horizontal) agar lebih rapi,
+  // atau biarkan semua true jika ingin bebas.
+  enableResizing={{
+    top:false, right:true, bottom:false, left:true,
+    topRight:false, bottomRight:false, bottomLeft:false, topLeft:false
+  }}
+  bounds="parent"
+  className="z-20 group border border-transparent hover:border-dashed hover:border-blue-300/50 transition-colors"
+>
+  {/* Helper Drag Handle */}
+  <div className="absolute -top-3 -right-3 bg-blue-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition shadow-sm z-50 cursor-ew-resize">
+    <Type size={10} />
+  </div>
 
-                    <div className="w-[420px] text-[18px] leading-tight font-bold">
-                      <div className="grid grid-cols-[140px_20px_1fr] gap-y-[14px]">
-                        <div>FULL NAME</div>
-                        <div className="text-center">:</div>
-                        <div className="uppercase">{formData.fullName}</div>
+  <div
+  className="w-full h-full p-2 cursor-move relative"
+  style={{
+    transform: `scale(${textState.scale})`,
+    transformOrigin: 'top left',
+    color: textState.color,
+    fontFamily: textState.fontFamily,
+  }}
+>
+  {textLayout === 'colon' ? (
+    // === LAYOUT B: LABEL : VALUE (seperti sekarang) ===
+    <div className="w-full text-[18px] leading-tight font-bold">
+      <div className="grid grid-cols-[140px_20px_1fr] gap-y-[14px] w-full">
+        <div className="shrink-0">NAME</div>
+        <div className="text-center">:</div>
+        <div className="uppercase break-words min-w-0 whitespace-pre-wrap">
+          {formData.fullName}
+        </div>
 
-                        <div>STUDENT ID</div>
-                        <div className="text-center">:</div>
-                        <div className="uppercase">{formData.studentId}</div>
+        <div className="shrink-0">ID</div>
+        <div className="text-center">:</div>
+        <div className="uppercase break-words min-w-0">
+          {formData.studentId}
+        </div>
 
-                        <div>
-                          PROGRAM /
-                          <br />
-                          MAJOR
-                        </div>
-                        <div className="text-center pt-2">:</div>
-                        <div className="uppercase pt-2 leading-snug">
-                          {formData.program}
-                        </div>
+        <div className="shrink-0">
+          STUDY PROGRAM /
+          <br />
+          MAJOR
+        </div>
+        <div className="text-center pt-2">:</div>
+        <div className="uppercase pt-2 leading-snug break-words min-w-0 whitespace-pre-wrap">
+          {formData.program}
+        </div>
 
-                        <div className="pt-2">DOB</div>
-                        <div className="text-center pt-2">:</div>
-                        <div className="uppercase pt-2">{formData.dob}</div>
+        <div className="shrink-0 pt-2">DOB</div>
+        <div className="text-center pt-2">:</div>
+        <div className="uppercase pt-2 break-words min-w-0">
+          {formData.dob}
+        </div>
 
-                        <div>ISSUED DATE</div>
-                        <div className="text-center">:</div>
-                        <div className="uppercase">
-                          {formData.issuedDate}
-                        </div>
+        <div className="shrink-0 pt-2">SEMESTER</div>
+        <div className="text-center pt-2">:</div>
+        <div className="uppercase pt-2 break-words min-w-0">
+          {formData.semester}
+        </div>
 
-                        <div>EXPIRATION DATE</div>
-                        <div className="text-center">:</div>
-                        <div className="uppercase">
-                          {formData.expirationDate}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Rnd>
+        <div className="shrink-0">ACADEMIC YEAR</div>
+        <div className="text-center">:</div>
+        <div className="uppercase break-words min-w-0">
+          {formData.expirationDate}
+        </div>
+      </div>
+    </div>
+  ) : (
+    // === LAYOUT A: seperti contoh CANVA (judul di atas, isi di bawah, 2 kolom) ===
+      <div className="w-full text-[13px] leading-snug font-semibold">
+    <div className="grid grid-cols-2 gap-x-16 gap-y-4 justify-items-start">
+      {/* NAME (kiri atas) */}
+      <div>
+        <p className="inline-block px-2 py-[2px] text-[9px] font-bold tracking-[0.18em] rounded-sm border border-blue-700 text-blue-700 bg-white">
+          NAME
+        </p>
+        <p className="mt-1 uppercase">
+          {formData.fullName}
+        </p>
+      </div>
+
+      {/* SEMESTER (kanan atas) */}
+      <div>
+        <p className="inline-block px-2 py-[2px] text-[9px] font-bold tracking-[0.18em] rounded-sm border border-blue-700 text-blue-700 bg-white">
+          SEMESTER
+        </p>
+        <p className="mt-1 uppercase">
+          {formData.semester}
+        </p>
+      </div>
+
+      {/* ID NUMBER (kiri tengah) */}
+      <div>
+        <p className="inline-block px-2 py-[2px] text-[9px] font-bold tracking-[0.18em] rounded-sm border border-blue-700 text-blue-700 bg-white">
+          ID NUMBER
+        </p>
+        <p className="mt-1 uppercase">
+          {formData.studentId}
+        </p>
+      </div>
+
+      {/* STUDY PROGRAM (kanan tengah) */}
+      <div>
+        <p className="inline-block px-2 py-[2px] text-[9px] font-bold tracking-[0.18em] rounded-sm border border-blue-700 text-blue-700 bg-white">
+          STUDY PROGRAM
+        </p>
+        <p className="mt-1 uppercase leading-tight">
+          {formData.program}
+        </p>
+      </div>
+
+      {/* ACADEMIC YEAR (kiri bawah) */}
+      <div>
+        <p className="inline-block px-2 py-[2px] text-[9px] font-bold tracking-[0.18em] rounded-sm border border-blue-700 text-blue-700 bg-white">
+          ACADEMIC YEAR
+        </p>
+        <p className="mt-1 uppercase">
+          {formData.expirationDate}
+        </p>
+      </div>
+    </div>
+  </div>
+  )}
+</div>
+
+</Rnd>
               </div>
             </div>
           </div>

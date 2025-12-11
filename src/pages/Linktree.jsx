@@ -10,7 +10,7 @@ function Linktree() {
     { id: 1, text: "Order Sekarang (24/7)", icon: <ShoppingBag size={22} />, href: "#", type: "link", badge: "Hot" },
     { id: 2, text: "WhatsApp Admin", icon: <MessageCircle size={22} />, href: "#", type: "link" },
     { id: 3, text: "Tools Generator", icon: <Wrench size={22} />, href: "/tools", type: "route", highlight: true },
-    { id: 4, text: "Akses Email", icon: <Mail size={22} />, href: "#", type: "link" },
+    { id: 4, text: "Akses Email", icon: <Mail size={22} />, href: "https://mail.belanjamu.app", type: "link", highlight: true },
     { id: 5, text: "Ketentuan Garansi", icon: <FileText size={22} />, href: "#", type: "link" },
     { id: 6, text: "FAQ / Pertanyaan", icon: <HelpCircle size={22} />, href: "#", type: "link" },
     { id: 7, text: "Gabung Reseller", icon: <Handshake size={22} />, href: "#", type: "link", badge: "Join" },
